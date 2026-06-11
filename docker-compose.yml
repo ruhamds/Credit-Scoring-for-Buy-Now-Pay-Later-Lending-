@@ -1,0 +1,36 @@
+version: '3.9'
+services:
+  api:
+    build: .
+    ports:
+      - 8000:8000
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/credit_risk
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - db
+      - mlflow
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: credit_risk
+    ports:
+      - 5432:5432
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  mlflow:
+    image: cr.flywheel.io/mlflow/mlflow:2.8.0
+    ports:
+      - 5000:5000
+    environment:
+      - BACKEND_STORE_URI=sqlite:///mlflow.db
+      - ARTIFACT_ROOT=/mlruns
+    volumes:
+      - ./mlruns:/mlruns
+
+volumes:
+  db_data:

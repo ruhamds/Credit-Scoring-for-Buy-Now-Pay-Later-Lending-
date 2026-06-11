@@ -1,0 +1,47 @@
+# Core Data Science
+pandas==2.3.0
+numpy==2.3.1
+scipy==1.16.0
+
+# Visualization
+matplotlib==3.10.3
+seaborn==0.13.2
+
+# Machine Learning
+scikit-learn==1.7.0
+xgboost==3.0.2
+imbalanced-learn==0.14.0
+
+# Explainability
+shap==0.48.0
+
+# Experiment Tracking
+mlflow==3.1.1
+packaging<26
+
+# API
+fastapi==0.116.1
+uvicorn==0.35.0
+pydantic==2.11.7
+
+# Feature Engineering
+xverse==1.0.5
+category-encoders==2.8.1
+
+# Model Persistence
+joblib==1.5.1
+
+# Configuration
+python-dotenv==1.1.1
+
+# Testing
+pytest==8.4.1
+pytest-cov==6.2.1
+
+# Code Quality
+flake8==7.3.0
+black==25.1.0
+
+# Utilities
+tqdm==4.67.1
+

@@ -1,0 +1,23 @@
+# Ignore data files
+/data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+venv/
+
+# Pytest
+.pytest_cache/
+
+# MLflow
+mlruns/
+
+
+# OS
+.DS_Store
+Thumbs.db
