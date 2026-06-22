@@ -37,6 +37,7 @@ python-dotenv==1.1.1
 # Testing
 pytest==8.4.1
 pytest-cov==6.2.1
+httpx==0.28.1
 
 # Code Quality
 flake8==7.3.0
