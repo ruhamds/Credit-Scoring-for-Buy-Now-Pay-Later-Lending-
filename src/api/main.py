@@ -1,18 +1,30 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
-from src.api.pydantic_models import PredictionRequest, PredictionResponse
+import joblib, logging
+from src.config import ARTIFACTS_DIR
 
-app = FastAPI(title="Credit Risk Platform")
+logger = logging.getLogger(__name__)
 
-@app.on_event("startup")
-def load_model():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    model_path = ARTIFACTS_DIR / "model.joblib"
+    app.state.model = joblib.load(model_path) if model_path.exists() else None
+    if app.state.model is None:
+        logger.warning("No model found — /predict will return 503")
+    yield
     app.state.model = None
 
-@app.post("/predict", response_model=PredictionResponse)
-def predict_endpoint(request: PredictionRequest):
-    model = app.state.model
+app = FastAPI(title="Credit Risk Scoring API", version="1.0.0", lifespan=lifespan)
+
+@app.get("/health")
+def health():
+    loaded = getattr(app.state, "model", None) is not None
+    return {"status": "ok", "model": "loaded" if loaded else "not loaded"}
+
+@app.post("/predict")
+def predict(request: dict):
+    model = getattr(app.state, "model", None)
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-
-    # Placeholder inference logic
-    score = 0.0
-    return PredictionResponse(score=score, approved=False)
+    # full implementation comes in Task 6 with Pydantic models
+    return {"detail": "not implemented yet"}
