@@ -54,3 +54,18 @@ NUM_COLS = ["Amount"]
 AGG_FUNCTIONS = {
     "Amount": ["sum", "mean", "count", "std", "max", "min"]
 }
+# ── RFM ────────────────────────────────────────────────────────────────────
+SNAPSHOT_DATE      = "2019-02-14"   # already set — confirmed from EDA
+TRAIN_CUTOFF_DATE  = "2019-01-29"   # training window boundary
+N_CLUSTERS         = 3
+RFM_RANDOM_STATE   = 42
+
+# High-risk cluster identification strategy:
+# After clustering, rank clusters by composite RFM score.
+# Cluster with lowest Frequency + lowest Monetary = highest risk.
+# Recency is inverted — higher recency days = less recent = higher risk.
+RISK_RANK_WEIGHTS  = {
+    "Recency"   : 1,    # higher days since last tx = worse
+    "Frequency" : -1,   # lower frequency = worse
+    "Monetary"  : -1,   # lower monetary = worse
+}
