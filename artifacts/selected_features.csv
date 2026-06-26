@@ -1,0 +1,15 @@
+0
+Amount_count
+Amount_sum
+Amount_std
+Amount_min
+tx_dayofweek_mean
+Amount_max
+Amount_mean
+tx_hour_mean
+tx_is_weekend_mean
+tx_day_mean
+ProviderId_mode
+tx_month_mean
+ChannelId_mode
+ProductCategory_mode
