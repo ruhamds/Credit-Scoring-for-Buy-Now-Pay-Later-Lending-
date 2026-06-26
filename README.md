@@ -1,203 +1,299 @@
-## Credit Risk Intelligence Platform
+# Credit Risk Intelligence Platform
 
-An end-to-end machine learning and MLOps project for building an alternative credit risk scoring system using transactional behavioral data. The project simulates a Buy-Now-Pay-Later (BNPL) lending scenario in which traditional credit history and loan default records are unavailable. Instead, customer transaction behavior is used to construct a proxy risk label and train predictive models that estimate customer risk levels.
+### End-to-End Alternative Credit Scoring & MLOps for Buy-Now-Pay-Later Lending
 
-The project covers the complete machine learning lifecycle, including exploratory data analysis, feature engineering, proxy target construction, model development, experiment tracking with MLflow, model explainability, API deployment with FastAPI, containerization with Docker, and CI/CD automation using GitHub Actions.
+> Building a production-oriented credit risk scoring system using alternative transactional data, interpretable machine learning, experiment tracking, and MLOps best practices.
+
+---
+
+## Overview
+
+Traditional credit scoring relies on historical loan repayment records and credit bureau information. However, many financial institutions serving emerging markets or launching new lending products lack sufficient historical credit data.
+
+This project simulates a real-world Buy-Now-Pay-Later (BNPL) lending scenario in which **Bati Bank** partners with an e-commerce platform to offer digital credit. Because no historical loan defaults exist, a behavioral proxy target is constructed from customer transaction data using **Recency, Frequency, and Monetary (RFM)** analysis.
+
+The objective is to build an end-to-end machine learning pipeline capable of estimating customer credit risk while emphasizing transparency, reproducibility, and production readiness.
 
 ---
 
 # Business Problem
 
-Bati Bank is partnering with an e-commerce platform to launch a Buy-Now-Pay-Later (BNPL) lending product. Since the platform has no historical lending records, traditional credit scoring approaches cannot be applied directly.
+The bank must answer a critical question:
 
-The objective is to leverage alternative transactional data to:
+> **"Can we identify potentially risky customers before extending credit, even when no historical default data exists?"**
 
-* Identify potentially high-risk customers.
-* Estimate customer risk probabilities.
-* Generate credit risk scores.
-* Support lending decisions in the absence of conventional credit history.
+To address this challenge, this project develops an alternative credit scoring system that:
+
+* constructs a behavioral proxy for credit risk,
+* engineers customer-level behavioral features,
+* compares interpretable and complex machine learning models,
+* tracks experiments using MLflow,
+* prepares the model for production deployment.
 
 ---
 
 # Project Objectives
 
-The project aims to:
-
-1. Construct a proxy credit risk target using customer behavioral patterns.
-2. Engineer predictive customer-level features from transaction history.
-3. Train and evaluate multiple machine learning models.
-4. Compare interpretable and high-performance approaches.
-5. Track experiments and model versions using MLflow.
-6. Deploy the best-performing model as a production-ready API.
-7. Implement testing, containerization, and CI/CD practices.
+* Build an alternative credit risk model using transactional behavioral data.
+* Construct a proxy target using customer engagement patterns.
+* Compare interpretable and high-performance machine learning models.
+* Produce calibrated probability estimates suitable for financial decision making.
+* Track experiments and model versions using MLflow.
+* Deploy the final model through a production-ready FastAPI service.
+* Demonstrate software engineering and MLOps best practices.
 
 ---
 
-# Project Structure
+# Repository Structure
 
 ```text
 credit-risk-model/
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-
+│
 ├── artifacts/
 ├── data/
 │   ├── raw/
 │   └── processed/
-
+│
 ├── docs/
 │   ├── assumptions.md
 │   ├── leakage_audit.md
 │   └── feature_catalog.md
-
+│
 ├── notebooks/
-│   └── 1.0-eda.ipynb
-
+│   ├── 01_eda.ipynb
+│   ├── 02_proxy_target_analysis.ipynb
+│   └── 03_feature_analysis.ipynb
+│
 ├── reports/
-
+│
 ├── src/
-│   ├── __init__.py
 │   ├── config.py
 │   ├── data_processing.py
 │   ├── rfm.py
-│   ├── train.py
 │   ├── evaluate.py
+│   ├── train.py
 │   ├── predict.py
 │   └── api/
-│       ├── main.py
-│       └── pydantic_models.py
-
+│
 ├── tests/
-│   └── test_data_processing.py
-
-├── requirements.txt
+│
 ├── Dockerfile
 ├── docker-compose.yml
-├── README.md
-└── .gitignore
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
 # Technology Stack
 
-### Data Processing
-
-* Pandas
-* NumPy
-
-### Machine Learning
-
-* Scikit-Learn
-* XGBoost
-* Imbalanced-Learn
-
-### Explainability
-
-* SHAP
-
-### Experiment Tracking
-
-* MLflow
-
-### API Deployment
-
-* FastAPI
-* Uvicorn
-
-### MLOps
-
-* Docker
-* GitHub Actions
-* Pytest
-* Flake8
-
----
-
-# Assumptions
-
-The project relies on the following assumptions:
-
-### Assumption 1
-
-Customer transaction behavior contains meaningful information about future financial risk.
-
-### Assumption 2
-
-Customers with low engagement patterns may exhibit higher risk characteristics than highly engaged customers.
-
-### Assumption 3
-
-Recency, Frequency, and Monetary (RFM) metrics can be used to construct a useful proxy target in the absence of actual default labels.
-
-These assumptions are documented and critically evaluated throughout the project.
-
----
-
-# Limitations
-
-This project does not contain actual loan repayment or default data.
-
-As a result, the target variable used for training is a proxy constructed from customer behavioral patterns rather than true credit default outcomes.
-
-Consequently:
-
-* The model estimates behavioral risk rather than actual probability of default.
-* Proxy labels may not perfectly represent customer creditworthiness.
-* Results should be interpreted as alternative risk signals rather than final lending decisions.
-* The model should be validated against real default outcomes if such data becomes available in the future.
+| Category            | Tools                                 |
+| ------------------- | ------------------------------------- |
+| Language            | Python                                |
+| Data Processing     | Pandas, NumPy                         |
+| Visualization       | Matplotlib, Seaborn                   |
+| Machine Learning    | Scikit-Learn, XGBoost                 |
+| Explainability      | SHAP                                  |
+| Feature Engineering | Scikit-Learn Pipelines, RFM, WoE / IV |
+| Experiment Tracking | MLflow                                |
+| API                 | FastAPI                               |
+| Testing             | Pytest                                |
+| Containerization    | Docker                                |
+| CI/CD               | GitHub Actions                        |
 
 ---
 
 # Credit Scoring Business Understanding
 
-## 1. How does the Basel II Accord's emphasis on risk measurement influence our need for an interpretable and well-documented model?
+## Basel II and Explainability
 
-The Basel II framework requires financial institutions to use risk measurement approaches that are transparent, auditable, and defensible. In a credit risk setting, model performance alone is not sufficient; institutions must also be able to explain how risk estimates are produced and justify lending decisions to regulators, auditors, and internal stakeholders.
+Financial institutions operating under Basel II and Basel III are expected to build models that are transparent, auditable, and defensible. High predictive accuracy alone is insufficient; lending decisions must also be explainable to regulators, auditors, and business stakeholders.
 
-This requirement influences the modeling approach used in this project. Alongside more complex machine learning models such as Gradient Boosting Machines (GBM), an interpretable baseline model based on Logistic Regression is developed. Logistic Regression provides clear relationships between input features and predicted risk, making it easier to understand and validate model behavior.
-
-In addition, all assumptions, feature engineering decisions, model evaluation results, and limitations are documented throughout the project. This ensures that the model development process remains transparent and reproducible, which is essential in regulated financial environments.
+For this reason, the project develops both an interpretable Logistic Regression model and a Gradient Boosting model. Logistic Regression provides a transparent baseline whose predictions are easier to understand and validate, while Gradient Boosting serves as a benchmark for potential performance improvements.
 
 ---
 
-## 2. Since we lack a direct "default" label, why is creating a proxy variable necessary, and what are the potential business risks of making predictions based on this proxy?
+## Why a Proxy Target?
 
-The dataset does not contain information about actual loan repayments or customer defaults. As a result, there is no direct target variable that can be used to train a traditional credit risk model. To address this limitation, a proxy target is created using customer behavioral patterns derived from Recency, Frequency, and Monetary (RFM) metrics.
+The dataset contains transactional behavior but **does not contain actual loan repayment or default information**.
 
-Customers are segmented using K-Means clustering based on their RFM profiles. The least engaged customer segment is then labeled as high risk (`is_high_risk = 1`), while all other customers are labeled as low risk (`is_high_risk = 0`).
+Without a true default label, supervised learning is not possible.
 
-This approach allows a supervised machine learning model to be trained, but it introduces important risks. Low engagement does not necessarily imply a high probability of default. Customers may become inactive for reasons unrelated to creditworthiness, such as changing platforms, seasonal purchasing behavior, or reduced spending needs.
+A proxy target is therefore constructed using customer engagement behavior:
 
-Consequently, the resulting model should be viewed as an alternative behavioral risk assessment system rather than a true probability-of-default model. Predictions generated from this proxy target must be interpreted with caution until actual repayment and default data become available for validation.
+* Recency
+* Frequency
+* Monetary value
+
+Customers are segmented using K-Means clustering, and the least engaged segment is labeled as high risk.
+
+This proxy enables supervised model development while acknowledging that behavioral disengagement is **not equivalent to confirmed credit default**.
 
 ---
 
-## 3. What are the key trade-offs between using a simple, interpretable model and a complex, high-performance model in a regulated financial context?
+## Model Selection in a Regulated Environment
 
-In regulated credit risk environments, model selection involves balancing predictive performance against interpretability and governance requirements.
+Two model families are evaluated.
 
-Logistic Regression offers several advantages. Its predictions are easy to explain, feature contributions can be interpreted directly, and the model is generally easier to validate and audit. These characteristics make it a common choice in traditional credit scoring systems and highly suitable for regulatory review.
+### Logistic Regression
 
-Gradient Boosting Models (GBM) are often capable of achieving higher predictive performance because they can capture complex non-linear relationships and interactions between variables. However, their decision-making process is less transparent and typically requires additional explainability techniques to understand model behavior.
+* Highly interpretable
+* Easy to audit
+* Stable probability estimates after calibration
+* Lower governance complexity
 
-The trade-off is therefore between transparency and predictive power. Logistic Regression provides stronger interpretability and governance benefits, while GBM may offer improved predictive accuracy. For this reason, both approaches are evaluated in this project. Logistic Regression serves as an interpretable benchmark, while GBM is assessed to determine whether any performance improvement justifies the additional complexity.
+### Gradient Boosting
+
+* Captures complex nonlinear relationships
+* Often provides stronger predictive performance
+* Requires post-hoc explainability techniques
+* More complex to monitor and maintain
+
+Both models are trained and evaluated using identical feature sets and compared using discrimination, calibration, and business-oriented evaluation metrics.
+
+---
+
+# Exploratory Data Analysis
+
+Key findings from the dataset include:
+
+* **95,662 transactions** across **3,742 unique customers**
+* **90-day observation period** from November 2018 to February 2019
+* No missing values
+* Extremely right-skewed transaction amounts
+* Strong correlation between `Amount` and `Value`
+* Customer behavior is highly heterogeneous, motivating customer-level feature engineering
+* No historical default labels, confirming the need for proxy target construction
+
+---
+
+# Feature Engineering
+
+Customer-level features are generated using a production-oriented Scikit-Learn pipeline.
+
+Features include:
+
+* Transaction count
+* Total transaction value
+* Average transaction amount
+* Transaction standard deviation
+* Temporal features
+* Behavioral aggregates
+* Encoded categorical variables
+* Standardized numerical variables
+
+Feature engineering is implemented entirely within reusable Python modules rather than notebooks.
+
+---
+
+# Proxy Target Construction
+
+A behavioral proxy target is created using the following workflow:
+
+```
+Transactions
+      │
+      ▼
+Customer Aggregation
+      │
+      ▼
+Recency • Frequency • Monetary
+      │
+      ▼
+Robust Scaling
+      │
+      ▼
+K-Means Clustering
+      │
+      ▼
+High-Risk Segment
+```
+
+Silhouette analysis was performed to evaluate cluster quality before selecting the final segmentation strategy.
+
+---
+
+# Model Development
+
+The project trains and compares multiple supervised learning models.
+
+Current models include:
+
+* Logistic Regression
+* Gradient Boosting
+
+Evaluation includes:
+
+* ROC-AUC
+* Precision-Recall AUC
+* F1 Score
+* Recall
+* Expected Calibration Error (ECE)
+* Probability calibration
+* Cost-sensitive threshold optimization
+
+Experiments are tracked using MLflow, and trained models are versioned for reproducibility.
+
+---
+
+# Current Results
+
+| Model               |    ROC-AUC |         F1 |      Calibration |
+| ------------------- | ---------: | ---------: | ---------------: |
+| Logistic Regression | **0.7423** |     0.8064 | ECE = **0.0704** |
+| Gradient Boosting   |     0.6801 | **0.8091** |     ECE ≈ 0.0000 |
+
+Logistic Regression was selected as the primary model because it achieved the strongest discriminatory performance while remaining highly interpretable, making it more appropriate for a regulated credit-risk setting.
+
+---
+
+# Project Limitations
+
+This project intentionally highlights several real-world challenges.
+
+* No actual loan default labels are available.
+* The target variable is a behavioral proxy rather than true probability of default.
+* Customer disengagement does not necessarily imply future credit default.
+* The proxy target produces a highly imbalanced risk distribution, which influences threshold optimization.
+* Operational decision thresholds may differ from statistically optimal thresholds due to business policy and governance requirements.
+
+These limitations are explicitly documented to ensure transparency and reproducibility.
 
 ---
 
 # Current Project Status
 
-* [x] Project structure initialized
-* [x] Environment configured
-* [x] Dependencies installed
-* [x] Business understanding completed
-* [ ] Exploratory Data Analysis
-* [ ] Feature Engineering Pipeline
-* [ ] Proxy Target Construction
-* [ ] Model Training & MLflow Tracking
-* [ ] Explainability Analysis
-* [ ] FastAPI Deployment
-* [ ] Dockerization
-* [ ] CI/CD Automation
-* [ ] Final Evaluation Report
+| Task                         | Status |
+| ---------------------------- | :----: |
+| Business Understanding       |    ✅   |
+| Exploratory Data Analysis    |    ✅   |
+| Feature Engineering Pipeline |    ✅   |
+| Proxy Target Construction    |    ✅   |
+| Model Training               |    ✅   |
+| MLflow Tracking              |    ✅   |
+| Probability Calibration      |    ✅   |
+| SHAP Explainability          |    ✅   |
+| FastAPI Deployment           |    ⏳   |
+| Dockerization                |    ⏳   |
+| GitHub Actions CI/CD         |    ⏳   |
+| Production Monitoring        |    ⏳   |
+
+---
+
+# Future Work
+
+The remaining implementation focuses on production deployment.
+
+* FastAPI inference service
+* Docker containerization
+* GitHub Actions CI/CD
+* Prediction logging
+* Health monitoring
+* Model versioning
+* Production-ready deployment pipeline
+
+---
+
+# License
+
+
