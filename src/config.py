@@ -36,8 +36,8 @@ TARGET_COL     = "is_high_risk"
 
 # ── Business cost for threshold optimization ───────────────────────────────
 # A missed default (FN) costs ~15x more than a wrongly rejected applicant (FP)
-FN_COST        = 15
-FP_COST        = 1
+FN_COST = 5   # reduce from 15
+FP_COST = 1
 
 # ── Feature engineering ────────────────────────────────────────────────────
 # IV threshold — features below this are dropped (industry standard)

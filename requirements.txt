@@ -46,3 +46,5 @@ black==25.1.0
 # Utilities
 tqdm==4.67.1
 
+psycopg2-binary>=2.9.9
+

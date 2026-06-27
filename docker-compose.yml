@@ -1,36 +1,47 @@
-version: '3.9'
-services:
+ services:
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     creditrisk
+      POSTGRES_PASSWORD: creditrisk
+      POSTGRES_DB:       creditrisk
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U creditrisk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build: .
     ports:
-      - 8000:8000
+      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/credit_risk
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      DATABASE_URL: postgresql://creditrisk:creditrisk@db:5432/creditrisk
     depends_on:
-      - db
-      - mlflow
-
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: credit_risk
-    ports:
-      - 5432:5432
+      db:
+        condition: service_healthy
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./artifacts:/app/artifacts:ro   # read-only — model files
+    restart: unless-stopped
 
   mlflow:
-    image: cr.flywheel.io/mlflow/mlflow:2.8.0
+    image: ghcr.io/mlflow/mlflow:v2.13.0
     ports:
-      - 5000:5000
-    environment:
-      - BACKEND_STORE_URI=sqlite:///mlflow.db
-      - ARTIFACT_ROOT=/mlruns
+      - "5000:5000"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlflow/artifacts
     volumes:
-      - ./mlruns:/mlruns
+      - mlflow_data:/mlflow
 
 volumes:
-  db_data:
+  postgres_data:
+  mlflow_data:

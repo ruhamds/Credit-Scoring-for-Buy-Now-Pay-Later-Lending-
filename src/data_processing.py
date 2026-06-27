@@ -123,12 +123,31 @@ class CustomerAggregator(BaseEstimator, TransformerMixin):
         agg_df.columns = ["_".join(col).strip() for col in agg_df.columns]
         agg_df = agg_df.reset_index()
 
+        # Numeric aggregates can be NaN for single-transaction customers
+        # (e.g. Amount_std has no variance with only one observation).
+        # That's zero variability, not missing data, so fill with 0 here —
+        # scoped to the numeric aggregate columns only, before any
+        # categorical mode columns are merged in below. Those _mode
+        # columns are intentionally left as NaN: CategoricalEncoder
+        # already has explicit handling for missing categorical values
+        # (it fills with the string "missing"), and overwriting that
+        # here with a numeric 0 would create a second, conflicting
+        # "missing" sentinel that the encoder would treat as a real
+        # category ("0") instead of as missing.
+        numeric_agg_cols = [c for c in agg_df.columns if c != "CustomerId"]
+        agg_df[numeric_agg_cols] = agg_df[numeric_agg_cols].fillna(0)
+
         # Temporal features — take mean per customer
         temporal_cols = [c for c in X.columns if c.startswith("tx_")]
         if temporal_cols:
             temp_agg = X.groupby("CustomerId")[temporal_cols].mean()
             temp_agg.columns = [f"{c}_mean" for c in temp_agg.columns]
             agg_df = agg_df.merge(temp_agg, on="CustomerId", how="left")
+            # These are means of always-present temporal features, so any
+            # NaN here would only come from a merge mismatch, not from
+            # single-observation variance — fine to zero-fill as well.
+            mean_cols = list(temp_agg.columns)
+            agg_df[mean_cols] = agg_df[mean_cols].fillna(0)
 
         # Categorical mode per customer (most frequent value)
         existing_cats = [c for c in CAT_COLS if c in X.columns]
@@ -140,6 +159,8 @@ class CustomerAggregator(BaseEstimator, TransformerMixin):
                 .rename(columns={col: f"{col}_mode"})
             )
             agg_df = agg_df.merge(mode_df, on="CustomerId", how="left")
+            # NOTE: intentionally NOT filled here. CategoricalEncoder
+            # handles NaN/missing categoricals explicitly downstream.
 
         return agg_df
 
@@ -199,7 +220,7 @@ class FeatureScaler(BaseEstimator, TransformerMixin):
         return X
 
 
-# ── IV Filtering (outside Pipeline — xverse sklearn compatibility) ─────────
+# ── IV Filtering (manual implementation — see docstring for why) ──────────
 
 def compute_iv_and_select_features(
     X_train: pd.DataFrame,
@@ -207,29 +228,101 @@ def compute_iv_and_select_features(
     threshold: float = IV_THRESHOLD,
 ) -> list:
     """
-    Computes Information Value for each feature using xverse.
-    Returns list of feature names with IV >= threshold.
+    Computes Information Value (IV) for each feature manually.
 
-    Called ONCE on training data after Pipeline.fit_transform().
-    Selected feature names are saved to artifacts/ for inference consistency.
+    Replaces xverse.WOE, which is incompatible with the scikit-learn/pandas
+    versions in this environment (WOE.fit() always routes through
+    MonotonicBinning.fit(), which calls sklearn's check_array() with the
+    old `force_all_finite` keyword — renamed to `ensure_all_finite` in
+    current scikit-learn — so it fails unconditionally regardless of
+    column dtypes). Computing IV directly avoids the dependency entirely.
 
-    Why outside the Pipeline?
-    xverse WOETransformer is incompatible with sklearn >= 1.2 due to
-    deprecated get_feature_names API. Running it standalone avoids
-    the compatibility error while still using IV for feature selection.
+    IV interpretation (Siddiqi 2006):
+        < 0.02  : unpredictive — drop
+        0.02–0.1: weak
+        0.1–0.3 : medium
+        > 0.3   : strong
+
+    Note on WoE sign convention: this implementation computes
+    woe = log(dist_events / dist_non_events), which is the mirror image
+    of the conventional log(dist_non_events / dist_events) used in some
+    references. This only flips the sign of the per-bin `woe` column
+    (an intermediate value that isn't returned or used elsewhere) — the
+    per-bin IV term (dist_events - dist_non_events) * woe, and therefore
+    the summed IV per feature used for ranking/selection below, is
+    identical either way, since both the subtraction and the log flip
+    sign together and cancel out.
+
+    X_train and y_train are paired by index (not row position) — caller
+    is responsible for ensuring y_train is indexed consistently with
+    X_train (e.g. both indexed by CustomerId) before calling this.
     """
-    try:
-        from xverse.transformer import WOETransformer
-        woe = WOETransformer()
-        woe.fit(X_train, y_train)
-        iv_df = woe.iv_df
-        selected = iv_df[iv_df["IV"] >= threshold]["Variable_Name"].tolist()
-        logger.info(f"IV filtering: {len(selected)}/{len(X_train.columns)} features retained")
-        logger.info(f"IV summary:\n{iv_df.sort_values('IV', ascending=False).to_string()}")
-        return selected
-    except Exception as e:
-        logger.warning(f"xverse IV computation failed: {e}. Using all features.")
+    # Pair X and y by index explicitly rather than trusting row order.
+    y_train = y_train.reindex(X_train.index)
+    if y_train.isna().any():
+        raise ValueError(
+            "y_train has missing labels for some rows in X_train after "
+            "aligning by index. Check that X_train and y_train share a "
+            "common, consistent index before calling this function."
+        )
+
+    iv_scores = {}
+    total_events     = (y_train == 1).sum()
+    total_non_events = (y_train == 0).sum()
+
+    if total_events == 0 or total_non_events == 0:
+        logger.warning("IV computation skipped — target has only one class")
         return X_train.columns.tolist()
+
+    for col in X_train.columns:
+        try:
+            # Bin continuous features into 10 quantile bins
+            binned = pd.qcut(X_train[col], q=10, duplicates="drop")
+            temp   = pd.DataFrame({
+                "bin"   : binned,
+                "target": y_train.values,
+            })
+
+            grouped = temp.groupby("bin", observed=True)["target"].agg(
+                events     = lambda x: (x == 1).sum(),
+                non_events = lambda x: (x == 0).sum(),
+            ).reset_index()
+
+            grouped["dist_events"]     = grouped["events"]     / total_events
+            grouped["dist_non_events"] = grouped["non_events"] / total_non_events
+
+            # Replace zeros to avoid log(0)
+            grouped["dist_events"]     = grouped["dist_events"].replace(0, 0.0001)
+            grouped["dist_non_events"] = grouped["dist_non_events"].replace(0, 0.0001)
+
+            grouped["woe"] = np.log(
+                grouped["dist_events"] / grouped["dist_non_events"]
+            )
+            grouped["iv"]  = (
+                grouped["dist_events"] - grouped["dist_non_events"]
+            ) * grouped["woe"]
+
+            iv_scores[col] = grouped["iv"].sum()
+
+        except Exception as e:
+            logger.debug(f"IV computation skipped for {col}: {e}")
+            iv_scores[col] = 0.0
+
+    iv_df = pd.DataFrame.from_dict(
+        iv_scores, orient="index", columns=["IV"]
+    ).sort_values("IV", ascending=False)
+
+    logger.info(f"IV scores:\n{iv_df.to_string()}")
+
+    selected = iv_df[iv_df["IV"] >= threshold].index.tolist()
+    dropped  = iv_df[iv_df["IV"] <  threshold].index.tolist()
+
+    logger.info(
+        f"IV filtering: {len(selected)}/{len(X_train.columns)} features retained\n"
+        f"Dropped (IV < {threshold}): {dropped}"
+    )
+
+    return selected if selected else X_train.columns.tolist()
 
 
 # ── Pipeline Builder ───────────────────────────────────────────────────────
@@ -283,15 +376,33 @@ def process_data(
     # IV-based feature selection — training data only
     selected_features = X_train_proc.columns.tolist()
     if y_train is not None:
-        # Align y_train index to aggregated X_train (now customer-level)
+        # Align y_train to X_train_proc's row order, indexed by CustomerId.
+        # IMPORTANT: y_train.loc[y_train.index.isin(customer_ids)] (the
+        # previous approach) only FILTERS y_train — it does not reorder it
+        # to match X_train_proc's row order. compute_iv_and_select_features
+        # pairs X and y by row position, so any difference between
+        # X_train_proc's CustomerId order and y_train's index order would
+        # silently mislabel every row with no error raised. Using
+        # CustomerId as the index on both sides and reindexing explicitly
+        # guarantees correct pairing regardless of how either was sorted.
         customer_ids = X_train_proc["CustomerId"]
-        y_aligned = y_train.loc[y_train.index.isin(customer_ids)]
+        y_aligned = y_train.reindex(customer_ids.values)
+
+        if y_aligned.isna().any():
+            missing = customer_ids[y_aligned.isna().values].tolist()
+            raise ValueError(
+                f"y_train is missing labels for {len(missing)} customer(s) "
+                f"present in X_train_proc: {missing[:10]}"
+                f"{'...' if len(missing) > 10 else ''}. "
+                f"IV computation requires a label for every training customer."
+            )
 
         num_cols = X_train_proc.select_dtypes(include="number").columns.tolist()
         num_cols = [c for c in num_cols if c != "CustomerId"]
 
+        X_iv = X_train_proc.set_index("CustomerId")[num_cols]
         selected_features = compute_iv_and_select_features(
-            X_train_proc[num_cols], y_aligned, threshold=IV_THRESHOLD
+            X_iv, y_aligned, threshold=IV_THRESHOLD
         )
 
     if save_pipeline:

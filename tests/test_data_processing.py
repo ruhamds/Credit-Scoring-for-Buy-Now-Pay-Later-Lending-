@@ -21,6 +21,35 @@ from src.config import COLS_TO_DROP, AGG_FUNCTIONS
 # ── Fixtures ───────────────────────────────────────────────────────────────
 
 @pytest.fixture
+def sample_df():
+    """Minimal transaction dataframe mimicking Xente schema."""
+    return pd.DataFrame({
+        "TransactionId"      : ["T1", "T2", "T3", "T4"],
+        "BatchId"            : ["B1", "B1", "B2", "B2"],
+        "AccountId"          : ["A1", "A1", "A2", "A2"],
+        "SubscriptionId"     : ["S1", "S1", "S2", "S2"],
+        "CustomerId"         : ["C1", "C1", "C2", "C2"],
+        "CurrencyCode"       : ["UGX"] * 4,
+        "CountryCode"        : [256] * 4,
+        "ProviderId"         : ["ProviderId_4"] * 4,
+        "ProductId"          : ["ProductId_6"] * 4,
+        "ProductCategory"    : ["financial_services", "airtime",
+                                "financial_services", "utility_bill"],
+        "ChannelId"          : ["ChannelId_3"] * 4,
+        "Amount"             : [1000.0, -50.0, 2800.0, 500.0],
+        "Value"              : [1000, 50, 2800, 500],
+        "TransactionStartTime": [
+            "2018-11-15T10:00:00Z",
+            "2018-11-16T14:30:00Z",
+            "2018-12-01T08:00:00Z",
+            "2018-12-15T20:00:00Z",
+        ],
+        "PricingStrategy"    : [2, 2, 2, 4],
+        "FraudResult"        : [0, 0, 0, 0],
+    })
+
+
+@pytest.fixture
 def sample_df_with_single_tx():
     """Includes a single-transaction customer — exposes Amount_std NaN bug."""
     return pd.DataFrame({
