@@ -11,7 +11,7 @@ ARTIFACTS_DIR  = ROOT_DIR / "artifacts"
 RAW_FILE       = DATA_RAW / "data.csv"          # rename to match your filename
 
 # ── RFM ────────────────────────────────────────────────────────────────────
-# Snapshot date = 1 day after the last transaction in the dataset.
+# Snapshot date = 1 day after the last transaction in the dataset.q
 SNAPSHOT_DATE      = "2019-02-14"   # 1 day after last transaction (confirmed)
 TRAIN_CUTOFF_DATE  = "2019-01-29"   # ~75 days train, ~15 days test
                                         # adjust if distribution is too thin
