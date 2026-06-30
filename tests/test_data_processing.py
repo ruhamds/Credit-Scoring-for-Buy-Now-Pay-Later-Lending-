@@ -6,7 +6,6 @@ Each test targets a specific failure mode that would be silent in production.
 """
 
 import pytest
-import numpy as np
 import pandas as pd
 from src.data_processing import (
     DropColumnsTransformer,
@@ -24,28 +23,28 @@ from src.config import COLS_TO_DROP, AGG_FUNCTIONS
 def sample_df():
     """Minimal transaction dataframe mimicking Xente schema."""
     return pd.DataFrame({
-        "TransactionId"      : ["T1", "T2", "T3", "T4"],
-        "BatchId"            : ["B1", "B1", "B2", "B2"],
-        "AccountId"          : ["A1", "A1", "A2", "A2"],
-        "SubscriptionId"     : ["S1", "S1", "S2", "S2"],
-        "CustomerId"         : ["C1", "C1", "C2", "C2"],
-        "CurrencyCode"       : ["UGX"] * 4,
-        "CountryCode"        : [256] * 4,
-        "ProviderId"         : ["ProviderId_4"] * 4,
-        "ProductId"          : ["ProductId_6"] * 4,
-        "ProductCategory"    : ["financial_services", "airtime",
-                                "financial_services", "utility_bill"],
-        "ChannelId"          : ["ChannelId_3"] * 4,
-        "Amount"             : [1000.0, -50.0, 2800.0, 500.0],
-        "Value"              : [1000, 50, 2800, 500],
+        "TransactionId": ["T1", "T2", "T3", "T4"],
+        "BatchId": ["B1", "B1", "B2", "B2"],
+        "AccountId": ["A1", "A1", "A2", "A2"],
+        "SubscriptionId": ["S1", "S1", "S2", "S2"],
+        "CustomerId": ["C1", "C1", "C2", "C2"],
+        "CurrencyCode": ["UGX"] * 4,
+        "CountryCode": [256] * 4,
+        "ProviderId": ["ProviderId_4"] * 4,
+        "ProductId": ["ProductId_6"] * 4,
+        "ProductCategory": ["financial_services", "airtime",
+                            "financial_services", "utility_bill"],
+        "ChannelId": ["ChannelId_3"] * 4,
+        "Amount": [1000.0, -50.0, 2800.0, 500.0],
+        "Value": [1000, 50, 2800, 500],
         "TransactionStartTime": [
             "2018-11-15T10:00:00Z",
             "2018-11-16T14:30:00Z",
             "2018-12-01T08:00:00Z",
             "2018-12-15T20:00:00Z",
         ],
-        "PricingStrategy"    : [2, 2, 2, 4],
-        "FraudResult"        : [0, 0, 0, 0],
+        "PricingStrategy": [2, 2, 2, 4],
+        "FraudResult": [0, 0, 0, 0],
     })
 
 
@@ -53,19 +52,19 @@ def sample_df():
 def sample_df_with_single_tx():
     """Includes a single-transaction customer — exposes Amount_std NaN bug."""
     return pd.DataFrame({
-        "TransactionId"      : ["T1", "T2", "T3", "T4", "T5"],
-        "BatchId"            : ["B1", "B1", "B2", "B2", "B3"],
-        "AccountId"          : ["A1", "A1", "A2", "A2", "A3"],
-        "SubscriptionId"     : ["S1", "S1", "S2", "S2", "S3"],
-        "CustomerId"         : ["C1", "C1", "C2", "C2", "C3"],  # C3 has 1 tx
-        "CurrencyCode"       : ["UGX"] * 5,
-        "CountryCode"        : [256] * 5,
-        "ProviderId"         : ["ProviderId_4"] * 5,
-        "ProductId"          : ["ProductId_6"] * 5,
-        "ProductCategory"    : ["financial_services"] * 5,
-        "ChannelId"          : ["ChannelId_3"] * 5,
-        "Amount"             : [1000.0, -50.0, 2800.0, 500.0, 750.0],
-        "Value"              : [1000, 50, 2800, 500, 750],
+        "TransactionId": ["T1", "T2", "T3", "T4", "T5"],
+        "BatchId": ["B1", "B1", "B2", "B2", "B3"],
+        "AccountId": ["A1", "A1", "A2", "A2", "A3"],
+        "SubscriptionId": ["S1", "S1", "S2", "S2", "S3"],
+        "CustomerId": ["C1", "C1", "C2", "C2", "C3"],  # C3 has 1 tx
+        "CurrencyCode": ["UGX"] * 5,
+        "CountryCode": [256] * 5,
+        "ProviderId": ["ProviderId_4"] * 5,
+        "ProductId": ["ProductId_6"] * 5,
+        "ProductCategory": ["financial_services"] * 5,
+        "ChannelId": ["ChannelId_3"] * 5,
+        "Amount": [1000.0, -50.0, 2800.0, 500.0, 750.0],
+        "Value": [1000, 50, 2800, 500, 750],
         "TransactionStartTime": [
             "2018-11-15T10:00:00Z",
             "2018-11-16T14:30:00Z",
@@ -73,8 +72,8 @@ def sample_df_with_single_tx():
             "2018-12-15T20:00:00Z",
             "2019-01-10T09:00:00Z",
         ],
-        "PricingStrategy"    : [2, 2, 2, 4, 2],
-        "FraudResult"        : [0, 0, 0, 0, 0],
+        "PricingStrategy": [2, 2, 2, 4, 2],
+        "FraudResult": [0, 0, 0, 0, 0],
     })
 
 
@@ -85,7 +84,7 @@ def test_pipeline_handles_single_transaction_customer(sample_df_with_single_tx):
     This test would have caught the 712-customer NaN bug on real data.
     """
     pipeline = build_pipeline()
-    result   = pipeline.fit_transform(sample_df_with_single_tx)
+    result = pipeline.fit_transform(sample_df_with_single_tx)
 
     null_counts = result.isnull().sum()
     cols_with_nulls = null_counts[null_counts > 0]
@@ -95,6 +94,7 @@ def test_pipeline_handles_single_transaction_customer(sample_df_with_single_tx):
     )
 
 # ── DropColumnsTransformer ─────────────────────────────────────────────────
+
 
 def test_drop_columns_removes_configured_cols(sample_df):
     """Zero-signal columns must not survive into the pipeline."""

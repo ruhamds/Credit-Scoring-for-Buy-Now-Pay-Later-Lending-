@@ -13,7 +13,6 @@ SHAP explainer initialised alongside model at startup.
 Every prediction written to PostgreSQL audit log.
 """
 
-import json
 import logging
 import os
 import uuid
@@ -31,18 +30,18 @@ from src.api.pydantic_models import (
     PredictRequest, PredictResponse, RiskFactor, HealthResponse
 )
 from src.api.prediction_log import (
-    get_engine, init_db, log_prediction, PredictionRecord
+    get_engine, init_db, log_prediction
 )
 from src.config import ARTIFACTS_DIR
 
 logger = logging.getLogger(__name__)
 
 # ── Constants ──────────────────────────────────────────────────────────────
-MODEL_VERSION    = "1.0.0"
-DECISION_BANDS   = {
+MODEL_VERSION = "1.0.0"
+DECISION_BANDS = {
     "approve": (0.00, 0.40),   # P(default) < 0.40 → approve
-    "refer"  : (0.40, 0.65),   # 0.40–0.65 → refer to human review
-    "reject" : (0.65, 1.01),   # > 0.65    → reject
+    "refer": (0.40, 0.65),   # 0.40–0.65 → refer to human review
+    "reject": (0.65, 1.01),   # > 0.65    → reject
 }
 FEATURE_COLS = [
     "Amount_count", "Amount_sum", "Amount_mean", "Amount_std",
@@ -90,7 +89,7 @@ async def lifespan(app: FastAPI):
     # ── SHAP explainer
     app.state.explainer = None
     try:
-        base   = getattr(app.state.model, "estimator", app.state.model)
+        base = getattr(app.state.model, "estimator", app.state.model)
         sample = pd.DataFrame(
             np.zeros((1, len(app.state.feature_cols))),
             columns=app.state.feature_cols
@@ -113,15 +112,15 @@ async def lifespan(app: FastAPI):
     try:
         engine = get_engine(db_url)
         init_db(engine)
-        app.state.db_engine   = engine
+        app.state.db_engine = engine
         app.state.SessionLocal = sessionmaker(bind=engine)
-        app.state.db_ok       = True
+        app.state.db_ok = True
         logger.info("Database connected")
     except Exception as e:
         logger.warning(f"Database unavailable: {e} — predictions will not be logged")
-        app.state.db_engine   = None
+        app.state.db_engine = None
         app.state.SessionLocal = None
-        app.state.db_ok       = False
+        app.state.db_ok = False
 
     yield
 
@@ -133,10 +132,10 @@ async def lifespan(app: FastAPI):
 # ── App ────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title       = "Credit Risk Scoring API — Bati Bank",
-    description = "Probability of default scoring for BNPL credit decisions",
-    version     = MODEL_VERSION,
-    lifespan    = lifespan,
+    title="Credit Risk Scoring API — Bati Bank",
+    description="Probability of default scoring for BNPL credit decisions",
+    version=MODEL_VERSION,
+    lifespan=lifespan,
 )
 
 
@@ -167,10 +166,10 @@ def score_to_decision(score: float) -> str:
 # ── Helper: SHAP top factors ──────────────────────────────────────────────
 
 def get_top_factors(
-    explainer   ,
-    input_df    : pd.DataFrame,
+    explainer,
+    input_df: pd.DataFrame,
     feature_cols: list,
-    n           : int = 3,
+    n: int = 3,
 ) -> list[dict]:
     if explainer is None:
         return []
@@ -189,8 +188,8 @@ def get_top_factors(
 
         return [
             {
-                "feature"  : name,
-                "impact"   : round(val, 4),
+                "feature": name,
+                "impact": round(val, 4),
                 "direction": "increases_risk" if val > 0 else "decreases_risk",
             }
             for name, val in pairs
@@ -210,28 +209,28 @@ def health():
     Used by Docker HEALTHCHECK and CI/CD pipeline.
     """
     return HealthResponse(
-        status        = "ok" if getattr(app.state, "model", None) else "degraded",
-        model_loaded  = getattr(app.state, "model", None) is not None,
-        model_version = MODEL_VERSION,
-        db_connected  = getattr(app.state, "db_ok", False),
+        status="ok" if getattr(app.state, "model", None) else "degraded",
+        model_loaded=getattr(app.state, "model", None) is not None,
+        model_version=MODEL_VERSION,
+        db_connected=getattr(app.state, "db_ok", False),
     )
 
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(
     request: PredictRequest,
-    db     : Optional[Session] = Depends(get_db),
+    db: Optional[Session] = Depends(get_db),
 ):
     model = getattr(app.state, "model", None)
     if model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     feature_cols = app.state.feature_cols
-    features     = request.model_dump()
-    input_df     = pd.DataFrame([features])[feature_cols]
+    features = request.model_dump()
+    input_df = pd.DataFrame([features])[feature_cols]
 
-    risk_score  = float(model.predict_proba(input_df)[0][1])
-    decision    = score_to_decision(risk_score)
+    risk_score = float(model.predict_proba(input_df)[0][1])
+    decision = score_to_decision(risk_score)
     top_factors = get_top_factors(
         app.state.explainer, input_df, feature_cols
     )
@@ -240,34 +239,35 @@ def predict(
     if db is not None:
         try:
             log_prediction(
-                session       = db,
-                prediction_id = prediction_id,
-                features      = features,
-                risk_score    = risk_score,
-                decision      = decision,
-                top_factors   = top_factors,
-                model_version = MODEL_VERSION,
-                threshold     = app.state.threshold,
+                session=db,
+                prediction_id=prediction_id,
+                features=features,
+                risk_score=risk_score,
+                decision=decision,
+                top_factors=top_factors,
+                model_version=MODEL_VERSION,
+                threshold=app.state.threshold,
             )
         except Exception as e:
             logger.warning(f"Prediction logging failed: {e}")
 
     return PredictResponse(
-        prediction_id  = prediction_id,
-        risk_score     = round(risk_score, 4),
-        decision       = decision,
-        top_factors    = [RiskFactor(**f) for f in top_factors],
-        model_version  = MODEL_VERSION,
-        threshold_used = app.state.threshold,
+        prediction_id=prediction_id,
+        risk_score=round(risk_score, 4),
+        decision=decision,
+        top_factors=[RiskFactor(**f) for f in top_factors],
+        model_version=MODEL_VERSION,
+        threshold_used=app.state.threshold,
     )
+
 
 @app.get("/schema")
 def schema():
     """Returns expected input fields and types for /predict."""
     return {
-        "endpoint"      : "/predict",
-        "method"        : "POST",
-        "input_fields"  : FEATURE_COLS,
-        "model_version" : MODEL_VERSION,
+        "endpoint": "/predict",
+        "method": "POST",
+        "input_fields": FEATURE_COLS,
+        "model_version": MODEL_VERSION,
         "decision_bands": DECISION_BANDS,
     }

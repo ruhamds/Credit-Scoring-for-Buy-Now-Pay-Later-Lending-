@@ -21,7 +21,6 @@ import numpy as np
 import pandas as pd
 import joblib
 
-from pathlib import Path
 from sklearn.preprocessing import RobustScaler
 from sklearn.cluster import KMeans
 
@@ -30,7 +29,6 @@ from src.config import (
     TRAIN_CUTOFF_DATE,
     N_CLUSTERS,
     RFM_RANDOM_STATE,
-    RISK_RANK_WEIGHTS,
     ARTIFACTS_DIR,
 )
 
@@ -83,10 +81,10 @@ def compute_rfm(train_df: pd.DataFrame) -> pd.DataFrame:
     train_df["Amount_positive"] = train_df["Amount"].clip(lower=0)
 
     rfm = train_df.groupby("CustomerId").agg(
-        Recency   = ("TransactionStartTime",
-                     lambda x: (snapshot - x.max()).days),
-        Frequency = ("TransactionId", "count"),
-        Monetary  = ("Amount_positive", "sum"),
+        Recency=("TransactionStartTime",
+                 lambda x: (snapshot - x.max()).days),
+        Frequency=("TransactionId", "count"),
+        Monetary=("Amount_positive", "sum"),
     ).reset_index()
 
     logger.info(
@@ -209,10 +207,10 @@ def identify_high_risk_cluster(
     rfm["cluster"] = labels
 
     cluster_summary = rfm.groupby("cluster").agg(
-        mean_Recency   = ("Recency",    "mean"),
-        mean_Frequency = ("Frequency",  "mean"),
-        mean_Monetary  = ("Monetary",   "mean"),
-        n_customers    = ("CustomerId", "count"),
+        mean_Recency=("Recency", "mean"),
+        mean_Frequency=("Frequency", "mean"),
+        mean_Monetary=("Monetary", "mean"),
+        n_customers=("CustomerId", "count"),
     ).reset_index()
 
     logger.info(f"Cluster summary (raw means):\n{cluster_summary.to_string(index=False)}")
@@ -229,21 +227,31 @@ def identify_high_risk_cluster(
 
     # Composite risk score on normalized dimensions
     cluster_summary["risk_score"] = (
-        cluster_summary["mean_Recency_norm"]   *  1 +  # higher = worse
+        cluster_summary["mean_Recency_norm"] * 1 +  # higher = worse
         cluster_summary["mean_Frequency_norm"] * -1 +  # lower  = worse
-        cluster_summary["mean_Monetary_norm"]  * -1    # lower  = worse
+        cluster_summary["mean_Monetary_norm"] * -1    # lower  = worse
     )
 
+    summary = cluster_summary[
+        [
+            "cluster",
+            "mean_Recency_norm",
+            "mean_Frequency_norm",
+            "mean_Monetary_norm",
+            "risk_score",
+        ]
+    ]
+
     logger.info(
-        f"Cluster risk scores (normalized):\n"
-        f"{cluster_summary[['cluster','mean_Recency_norm','mean_Frequency_norm','mean_Monetary_norm','risk_score']].to_string(index=False)}"
+        "Cluster risk scores (normalized):\n%s",
+        summary.to_string(index=False),
     )
 
     high_risk_cluster = int(
         cluster_summary.loc[cluster_summary["risk_score"].idxmax(), "cluster"]
     )
 
-    high_risk_n   = cluster_summary.loc[
+    high_risk_n = cluster_summary.loc[
         cluster_summary["cluster"] == high_risk_cluster, "n_customers"
     ].values[0]
     high_risk_pct = high_risk_n / len(rfm) * 100
@@ -267,6 +275,7 @@ def identify_high_risk_cluster(
     return high_risk_cluster, cluster_summary
 # ── Step 6: Assign binary label ────────────────────────────────────────────
 
+
 def assign_risk_labels(
     rfm: pd.DataFrame,
     labels: np.ndarray,
@@ -282,7 +291,7 @@ def assign_risk_labels(
     This is merged into the processed feature matrix in train.py.
     """
     rfm = rfm.copy()
-    rfm["cluster"]      = labels
+    rfm["cluster"] = labels
     rfm["is_high_risk"] = (rfm["cluster"] == high_risk_cluster).astype(int)
 
     label_dist = rfm["is_high_risk"].value_counts(normalize=True) * 100
@@ -314,8 +323,8 @@ def save_rfm_artifacts(
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
     rfm.to_csv(ARTIFACTS_DIR / "rfm_with_labels.csv", index=False)
-    joblib.dump(kmeans,  ARTIFACTS_DIR / "rfm_kmeans.joblib")
-    joblib.dump(scaler,  ARTIFACTS_DIR / "rfm_scaler.joblib")
+    joblib.dump(kmeans, ARTIFACTS_DIR / "rfm_kmeans.joblib")
+    joblib.dump(scaler, ARTIFACTS_DIR / "rfm_scaler.joblib")
     cluster_summary.to_csv(
         ARTIFACTS_DIR / "cluster_summary.csv", index=False
     )

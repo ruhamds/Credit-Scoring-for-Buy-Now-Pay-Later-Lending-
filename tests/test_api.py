@@ -41,12 +41,11 @@ def test_predict_endpoint_handles_model_state(client):
     )
     if response.status_code == 200:
         body = response.json()
-        assert "risk_score"    in body
-        assert "decision"      in body
+        assert "risk_score" in body
+        assert "decision" in body
         assert "prediction_id" in body
-        assert "top_factors"   in body
+        assert "top_factors" in body
         assert body["decision"] in ["approve", "refer", "reject"]
-
 
 
 def test_predict_rejects_invalid_payload(client):

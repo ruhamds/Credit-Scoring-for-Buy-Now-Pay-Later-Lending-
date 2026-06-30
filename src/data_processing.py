@@ -16,11 +16,9 @@ import numpy as np
 import pandas as pd
 import joblib
 
-from pathlib import Path
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, LabelEncoder
-from sklearn.impute import SimpleImputer
 
 from src.config import (
     COLS_TO_DROP,
@@ -28,7 +26,6 @@ from src.config import (
     AGG_FUNCTIONS,
     IV_THRESHOLD,
     ARTIFACTS_DIR,
-    SNAPSHOT_DATE,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,10 +64,10 @@ class TemporalFeatureExtractor(BaseEstimator, TransformerMixin):
     def transform(self, X):
         X = X.copy()
         dt = pd.to_datetime(X["TransactionStartTime"], utc=True)
-        X["tx_hour"]       = dt.dt.hour
-        X["tx_day"]        = dt.dt.day
-        X["tx_month"]      = dt.dt.month
-        X["tx_dayofweek"]  = dt.dt.dayofweek
+        X["tx_hour"] = dt.dt.hour
+        X["tx_day"] = dt.dt.day
+        X["tx_month"] = dt.dt.month
+        X["tx_dayofweek"] = dt.dt.dayofweek
         X["tx_is_weekend"] = (dt.dt.dayofweek >= 5).astype(int)
         X = X.drop(columns=["TransactionStartTime"])
         return X
@@ -267,7 +264,7 @@ def compute_iv_and_select_features(
         )
 
     iv_scores = {}
-    total_events     = (y_train == 1).sum()
+    total_events = (y_train == 1).sum()
     total_non_events = (y_train == 0).sum()
 
     if total_events == 0 or total_non_events == 0:
@@ -278,27 +275,27 @@ def compute_iv_and_select_features(
         try:
             # Bin continuous features into 10 quantile bins
             binned = pd.qcut(X_train[col], q=10, duplicates="drop")
-            temp   = pd.DataFrame({
-                "bin"   : binned,
+            temp = pd.DataFrame({
+                "bin": binned,
                 "target": y_train.values,
             })
 
             grouped = temp.groupby("bin", observed=True)["target"].agg(
-                events     = lambda x: (x == 1).sum(),
-                non_events = lambda x: (x == 0).sum(),
+                events=lambda x: (x == 1).sum(),
+                non_events=lambda x: (x == 0).sum(),
             ).reset_index()
 
-            grouped["dist_events"]     = grouped["events"]     / total_events
+            grouped["dist_events"] = grouped["events"] / total_events
             grouped["dist_non_events"] = grouped["non_events"] / total_non_events
 
             # Replace zeros to avoid log(0)
-            grouped["dist_events"]     = grouped["dist_events"].replace(0, 0.0001)
+            grouped["dist_events"] = grouped["dist_events"].replace(0, 0.0001)
             grouped["dist_non_events"] = grouped["dist_non_events"].replace(0, 0.0001)
 
             grouped["woe"] = np.log(
                 grouped["dist_events"] / grouped["dist_non_events"]
             )
-            grouped["iv"]  = (
+            grouped["iv"] = (
                 grouped["dist_events"] - grouped["dist_non_events"]
             ) * grouped["woe"]
 
@@ -315,7 +312,7 @@ def compute_iv_and_select_features(
     logger.info(f"IV scores:\n{iv_df.to_string()}")
 
     selected = iv_df[iv_df["IV"] >= threshold].index.tolist()
-    dropped  = iv_df[iv_df["IV"] <  threshold].index.tolist()
+    dropped = iv_df[iv_df["IV"] < threshold].index.tolist()
 
     logger.info(
         f"IV filtering: {len(selected)}/{len(X_train.columns)} features retained\n"
@@ -341,12 +338,12 @@ def build_pipeline() -> Pipeline:
     6. Scale numericals — must be last, fit on training distribution only
     """
     return Pipeline([
-        ("drop_cols",    DropColumnsTransformer(cols_to_drop=COLS_TO_DROP)),
-        ("temporal",     TemporalFeatureExtractor()),
-        ("signed_log",   SignedLogTransformer()),
-        ("aggregate",    CustomerAggregator(agg_functions=AGG_FUNCTIONS)),
-        ("encode_cats",  CategoricalEncoder()),
-        ("scale",        FeatureScaler()),
+        ("drop_cols", DropColumnsTransformer(cols_to_drop=COLS_TO_DROP)),
+        ("temporal", TemporalFeatureExtractor()),
+        ("signed_log", SignedLogTransformer()),
+        ("aggregate", CustomerAggregator(agg_functions=AGG_FUNCTIONS)),
+        ("encode_cats", CategoricalEncoder()),
+        ("scale", FeatureScaler()),
     ])
 
 

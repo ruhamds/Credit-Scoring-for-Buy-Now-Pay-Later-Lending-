@@ -14,7 +14,6 @@ from src.rfm import (
     cap_rfm_outliers,
     scale_rfm,
     cluster_customers,
-    identify_high_risk_cluster,
     assign_risk_labels,
 )
 
@@ -25,9 +24,9 @@ from src.rfm import (
 def raw_df():
     """Transactions spanning both train and test windows."""
     return pd.DataFrame({
-        "TransactionId"      : [f"T{i}" for i in range(6)],
-        "CustomerId"         : ["C1", "C1", "C2", "C2", "C3", "C3"],
-        "Amount"             : [1000, 500, 200, 150, 5000, 4000],
+        "TransactionId": [f"T{i}" for i in range(6)],
+        "CustomerId": ["C1", "C1", "C2", "C2", "C3", "C3"],
+        "Amount": [1000, 500, 200, 150, 5000, 4000],
         "TransactionStartTime": [
             "2018-12-01T10:00:00Z",   # train
             "2019-01-10T10:00:00Z",   # train

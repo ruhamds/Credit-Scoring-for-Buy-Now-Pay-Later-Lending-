@@ -26,20 +26,20 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, Session
 
 logger = logging.getLogger(__name__)
-Base   = declarative_base()
+Base = declarative_base()
 
 
 class PredictionRecord(Base):
     __tablename__ = "predictions"
 
-    prediction_id  = Column(String(36),  primary_key=True)
-    input_hash     = Column(String(64),  nullable=False, index=True)
-    risk_score     = Column(Float,       nullable=False)
-    decision       = Column(String(10),  nullable=False)
-    top_factors    = Column(Text,        nullable=False)   # JSON string
-    model_version  = Column(String(50),  nullable=False)
-    threshold_used = Column(Float,       nullable=False)
-    created_at     = Column(
+    prediction_id = Column(String(36), primary_key=True)
+    input_hash = Column(String(64), nullable=False, index=True)
+    risk_score = Column(Float, nullable=False)
+    decision = Column(String(10), nullable=False)
+    top_factors = Column(Text, nullable=False)   # JSON string
+    model_version = Column(String(50), nullable=False)
+    threshold_used = Column(Float, nullable=False)
+    created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc)
@@ -72,24 +72,24 @@ def hash_input(features: dict) -> str:
 
 
 def log_prediction(
-    session      : Session,
+    session: Session,
     prediction_id: str,
-    features     : dict,
-    risk_score   : float,
-    decision     : str,
-    top_factors  : list,
+    features: dict,
+    risk_score: float,
+    decision: str,
+    top_factors: list,
     model_version: str,
-    threshold    : float,
+    threshold: float,
 ) -> None:
     """Writes one prediction record to the audit log."""
     record = PredictionRecord(
-        prediction_id  = prediction_id,
-        input_hash     = hash_input(features),
-        risk_score     = risk_score,
-        decision       = decision,
-        top_factors    = json.dumps(top_factors),
-        model_version  = model_version,
-        threshold_used = threshold,
+        prediction_id=prediction_id,
+        input_hash=hash_input(features),
+        risk_score=risk_score,
+        decision=decision,
+        top_factors=json.dumps(top_factors),
+        model_version=model_version,
+        threshold_used=threshold,
     )
     session.add(record)
     session.commit()

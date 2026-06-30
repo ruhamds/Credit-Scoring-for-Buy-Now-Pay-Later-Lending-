@@ -8,23 +8,23 @@ Nothing is logged to MLflow here — that happens in train.py so the
 experiment context is controlled in one place.
 """
 
-import logging
-import numpy as np
-import pandas as pd
-import matplotlib
-matplotlib.use("Agg")   # non-interactive backend — safe for CI
-import matplotlib.pyplot as plt
-import shap
-
-from pathlib import Path
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
-from sklearn.frozen import FrozenEstimator
+from src.config import FN_COST, FP_COST
 from sklearn.metrics import (
     f1_score, precision_score, recall_score,
     roc_auc_score, average_precision_score,
     classification_report, confusion_matrix,
 )
-from src.config import FN_COST, FP_COST, ARTIFACTS_DIR
+from sklearn.frozen import FrozenEstimator
+from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from pathlib import Path
+import shap
+import matplotlib.pyplot as plt
+import logging
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")   # non-interactive backend — safe for CI
+
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +47,12 @@ def compute_metrics(
     Returns dict of metric_name → float, ready for mlflow.log_metrics().
     """
     metrics = {
-        "roc_auc"      : roc_auc_score(y_true, y_prob),
-        "pr_auc"       : average_precision_score(y_true, y_prob),
-        "f1"           : f1_score(y_true, y_pred, zero_division=0),
-        "precision"    : precision_score(y_true, y_pred, zero_division=0),
-        "recall"       : recall_score(y_true, y_pred, zero_division=0),
-        "f1_low_risk"  : f1_score(y_true, y_pred, pos_label=0, zero_division=0),
+        "roc_auc": roc_auc_score(y_true, y_prob),
+        "pr_auc": average_precision_score(y_true, y_prob),
+        "f1": f1_score(y_true, y_pred, zero_division=0),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1_low_risk": f1_score(y_true, y_pred, pos_label=0, zero_division=0),
     }
 
     logger.info(
@@ -143,7 +143,7 @@ def plot_calibration_curve(
 
     for probs, label in [
         (y_prob_before, f"{model_name} (uncalibrated)"),
-        (y_prob_after,  f"{model_name} (calibrated)"),
+        (y_prob_after, f"{model_name} (calibrated)"),
     ]:
         fraction_pos, mean_pred = calibration_curve(
             y_true, probs, n_bins=10, strategy="uniform"
@@ -184,8 +184,8 @@ def optimize_threshold(
 
     Returns (optimal_threshold, minimum_cost)
     """
-    thresholds  = np.arange(0.01, 1.0, 0.01)
-    costs       = []
+    thresholds = np.arange(0.01, 1.0, 0.01)
+    costs = []
 
     for t in thresholds:
         y_pred = (y_prob >= t).astype(int)
@@ -195,16 +195,16 @@ def optimize_threshold(
         total_cost = (fn * fn_cost) + (fp * fp_cost)
         costs.append(total_cost)
 
-    optimal_idx       = int(np.argmin(costs))
+    optimal_idx = int(np.argmin(costs))
     optimal_threshold = float(thresholds[optimal_idx])
-    minimum_cost      = float(costs[optimal_idx])
+    minimum_cost = float(costs[optimal_idx])
 
     # Operational floor: thresholds below 0.30 represent a near-universal
     # reject policy — not a functioning credit model. With 84.5% positive
     # class and asymmetric costs, the pure cost optimizer drives the
     # threshold to near-zero. We constrain to a minimum that preserves
     # meaningful discrimination.
-    THRESHOLD_FLOOR   = 0.30
+    THRESHOLD_FLOOR = 0.30
     if optimal_threshold < THRESHOLD_FLOOR:
         logger.warning(
             f"Cost-optimal threshold {optimal_threshold:.2f} is below "
@@ -244,13 +244,13 @@ def compute_shap_values(
     """
     try:
         if "logistic" in model_name.lower():
-            explainer   = shap.LinearExplainer(model, X)
+            explainer = shap.LinearExplainer(model, X)
         else:
-            explainer   = shap.TreeExplainer(model)
+            explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X)
     except Exception:
         logger.warning("TreeExplainer/LinearExplainer failed — using KernelExplainer (slow)")
-        explainer   = shap.KernelExplainer(model.predict_proba, X.sample(100))
+        explainer = shap.KernelExplainer(model.predict_proba, X.sample(100))
         shap_values = explainer.shap_values(X)
 
     # For binary classification, shap_values may be a list [class0, class1]

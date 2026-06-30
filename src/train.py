@@ -22,26 +22,25 @@ Usage:
 import logging
 import warnings
 import joblib
-import numpy as np
 import pandas as pd
 import mlflow
 import mlflow.sklearn
 from mlflow.models.signature import infer_signature
 
 from pathlib import Path
-from sklearn.linear_model     import LogisticRegression
-from sklearn.ensemble         import GradientBoostingClassifier
-from sklearn.model_selection  import RandomizedSearchCV
-from scipy.stats              import uniform, randint
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import RandomizedSearchCV
+from scipy.stats import uniform, randint
 
 from src.config import (
-    RAW_FILE, DATA_PROCESSED, ARTIFACTS_DIR,
+    RAW_FILE, ARTIFACTS_DIR,
     TRAIN_CUTOFF_DATE, RANDOM_STATE, TARGET_COL,
     IV_THRESHOLD,
 )
-from src.rfm             import generate_proxy_labels
+from src.rfm import generate_proxy_labels
 from src.data_processing import build_pipeline, compute_iv_and_select_features
-from src.evaluate        import (
+from src.evaluate import (
     compute_metrics, calibrate_model, compute_ece,
     plot_calibration_curve, optimize_threshold, compute_shap_values,
 )
@@ -79,8 +78,8 @@ def load_and_split(
     )
     cutoff_ts = pd.Timestamp(cutoff, tz="UTC")
 
-    df_train = df[df["TransactionStartTime"] <  cutoff_ts].copy()
-    df_test  = df[df["TransactionStartTime"] >= cutoff_ts].copy()
+    df_train = df[df["TransactionStartTime"] < cutoff_ts].copy()
+    df_test = df[df["TransactionStartTime"] >= cutoff_ts].copy()
 
     logger.info(
         f"Temporal split at {cutoff}:\n"
@@ -118,14 +117,14 @@ def build_feature_matrix(
     X_train = pipeline.fit_transform(df_train)
 
     logger.info("Transforming test data...")
-    X_test  = pipeline.transform(df_test)
+    X_test = pipeline.transform(df_test)
 
     # Save fitted pipeline
     joblib.dump(pipeline, ARTIFACTS_DIR / "feature_pipeline.joblib")
 
     # Merge proxy labels — inner join drops customers without labels
     X_train = X_train.merge(labels_df, on="CustomerId", how="inner")
-    X_test  = X_test.merge(labels_df,  on="CustomerId", how="inner")
+    X_test = X_test.merge(labels_df, on="CustomerId", how="inner")
 
     # Separate features and target
     feature_cols = [
@@ -147,9 +146,9 @@ def build_feature_matrix(
         selected = feature_cols
 
     y_train = X_train[TARGET_COL]
-    y_test  = X_test[TARGET_COL]
+    y_test = X_test[TARGET_COL]
     X_train = X_train[selected]
-    X_test  = X_test[selected]
+    X_test = X_test[selected]
 
     # Save selected features for inference
     pd.Series(selected).to_csv(
@@ -184,8 +183,8 @@ def get_models() -> dict:
                 random_state=RANDOM_STATE,
             ),
             "params": {
-                "C"      : uniform(0.001, 10),
-                "solver" : ["lbfgs", "liblinear"],
+                "C": uniform(0.001, 10),
+                "solver": ["lbfgs", "liblinear"],
                 "penalty": ["l2"],
             },
             "calibration_method": "sigmoid",
@@ -195,10 +194,10 @@ def get_models() -> dict:
                 random_state=RANDOM_STATE,
             ),
             "params": {
-                "n_estimators"  : randint(100, 500),
-                "max_depth"     : randint(2, 6),
-                "learning_rate" : uniform(0.01, 0.3),
-                "subsample"     : uniform(0.6, 0.4),
+                "n_estimators": randint(100, 500),
+                "max_depth": randint(2, 6),
+                "learning_rate": uniform(0.01, 0.3),
+                "subsample": uniform(0.6, 0.4),
                 "min_samples_leaf": randint(10, 50),
             },
             "calibration_method": "isotonic",
@@ -229,14 +228,14 @@ def train_and_evaluate(
         # ── Hyperparameter search ──────────────────────────────────────
         logger.info(f"Starting RandomizedSearch for {model_name}...")
         search = RandomizedSearchCV(
-            estimator   = model_config["model"],
-            param_distributions = model_config["params"],
-            n_iter      = 20,
-            cv          = 3,
-            scoring     = "f1",          # optimize for F1 — imbalanced data
-            random_state= RANDOM_STATE,
-            n_jobs      = -1,
-            verbose     = 0,
+            estimator=model_config["model"],
+            param_distributions=model_config["params"],
+            n_iter=20,
+            cv=3,
+            scoring="f1",          # optimize for F1 — imbalanced data
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+            verbose=0,
         )
         search.fit(X_train, y_train)
         best_model = search.best_estimator_
@@ -244,22 +243,22 @@ def train_and_evaluate(
         logger.info(f"Best params: {search.best_params_}")
         mlflow.log_params(search.best_params_)
         mlflow.log_param("model_name", model_name)
-        mlflow.log_param("n_train",    len(X_train))
-        mlflow.log_param("n_test",     len(X_test))
+        mlflow.log_param("n_train", len(X_train))
+        mlflow.log_param("n_test", len(X_test))
         mlflow.log_param("n_features", X_train.shape[1])
         mlflow.log_param("class_weight", "balanced")
 
         # ── Pre-calibration evaluation ─────────────────────────────────
-        y_prob_raw  = best_model.predict_proba(X_test)[:, 1]
-        ece_before  = compute_ece(y_test.values, y_prob_raw)
+        y_prob_raw = best_model.predict_proba(X_test)[:, 1]
+        ece_before = compute_ece(y_test.values, y_prob_raw)
 
         # ── Calibration ────────────────────────────────────────────────
         calibrated = calibrate_model(
             best_model, X_test, y_test.values,
             method=model_config["calibration_method"]
         )
-        y_prob_cal  = calibrated.predict_proba(X_test)[:, 1]
-        ece_after   = compute_ece(y_test.values, y_prob_cal)
+        y_prob_cal = calibrated.predict_proba(X_test)[:, 1]
+        ece_after = compute_ece(y_test.values, y_prob_cal)
 
         # ── Threshold optimization ─────────────────────────────────────
         opt_threshold, min_cost = optimize_threshold(
@@ -269,10 +268,10 @@ def train_and_evaluate(
 
         # ── Metrics ────────────────────────────────────────────────────
         metrics = compute_metrics(y_test.values, y_pred, y_prob_cal)
-        metrics["ece_before"]       = ece_before
-        metrics["ece_after"]        = ece_after
-        metrics["optimal_threshold"]= opt_threshold
-        metrics["min_cost"]         = min_cost
+        metrics["ece_before"] = ece_before
+        metrics["ece_after"] = ece_after
+        metrics["optimal_threshold"] = opt_threshold
+        metrics["min_cost"] = min_cost
         mlflow.log_metrics(metrics)
 
         # ── Calibration curve plot ─────────────────────────────────────
@@ -304,11 +303,11 @@ def train_and_evaluate(
         )
         mlflow.sklearn.log_model(
             calibrated,
-            name                   = "model",
-            registered_model_name  = f"credit-risk-{model_name}",
-            signature              = signature,
-            input_example          = X_train.iloc[:3],
-            pyfunc_predict_fn      = "predict_proba",
+            name="model",
+            registered_model_name=f"credit-risk-{model_name}",
+            signature=signature,
+            input_example=X_train.iloc[:3],
+            pyfunc_predict_fn="predict_proba",
         )
         mlflow.log_param("decision_threshold", opt_threshold)
 
@@ -363,7 +362,7 @@ def main():
     df_train, df_test = load_and_split(RAW_FILE, TRAIN_CUTOFF_DATE)
 
     # 2. Generate proxy labels (training window only)
-    df_raw    = pd.read_csv(RAW_FILE)
+    df_raw = pd.read_csv(RAW_FILE)
     labels_df = generate_proxy_labels(df_raw)
 
     # 3. Build feature matrix
@@ -372,8 +371,8 @@ def main():
     )
 
     # 4. Train and evaluate all models
-    models   = get_models()
-    results  = {}
+    models = get_models()
+    results = {}
 
     for model_name, model_config in models.items():
         logger.info(f"\n{'='*40}")
@@ -389,8 +388,8 @@ def main():
             ARTIFACTS_DIR / f"{model_name}_threshold.joblib"
         )
         results[model_name] = {
-            "roc_auc"  : roc_auc,
-            "model"    : calibrated,
+            "roc_auc": roc_auc,
+            "model": calibrated,
             "threshold": threshold,
         }
 
