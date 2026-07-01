@@ -1,299 +1,237 @@
-# Credit Risk Intelligence Platform
+# Credit Risk Probability Model — Bati Bank BNPL
 
-### End-to-End Alternative Credit Scoring & MLOps for Buy-Now-Pay-Later Lending
+An end-to-end machine learning platform that predicts customer credit risk for a Buy Now Pay Later (BNPL) product using behavioral transaction data.
 
-> Building a production-oriented credit risk scoring system using alternative transactional data, interpretable machine learning, experiment tracking, and MLOps best practices.
+**Key capabilities**
 
----
+- End-to-end ML pipeline
+- Alternative credit scoring using RFM proxy labels
+- Basel II inspired model development
+- MLflow experiment tracking
+- FastAPI prediction service
+- Dockerized deployment
+- GitHub Actions CI/CD
 
-## Overview
+### Key Features
 
-Traditional credit scoring relies on historical loan repayment records and credit bureau information. However, many financial institutions serving emerging markets or launching new lending products lack sufficient historical credit data.
-
-This project simulates a real-world Buy-Now-Pay-Later (BNPL) lending scenario in which **Bati Bank** partners with an e-commerce platform to offer digital credit. Because no historical loan defaults exist, a behavioral proxy target is constructed from customer transaction data using **Recency, Frequency, and Monetary (RFM)** analysis.
-
-The objective is to build an end-to-end machine learning pipeline capable of estimating customer credit risk while emphasizing transparency, reproducibility, and production readiness.
-
----
-
-# Business Problem
-
-The bank must answer a critical question:
-
-> **"Can we identify potentially risky customers before extending credit, even when no historical default data exists?"**
-
-To address this challenge, this project develops an alternative credit scoring system that:
-
-* constructs a behavioral proxy for credit risk,
-* engineers customer-level behavioral features,
-* compares interpretable and complex machine learning models,
-* tracks experiments using MLflow,
-* prepares the model for production deployment.
+- Full pipeline: raw transactions → engineered proxy labels → trained,
+  calibrated model → deployed API
+- FastAPI scoring service with SHAP explainability and PostgreSQL audit logging
+- Dockerized (multi-stage build) with GitHub Actions CI/CD (lint, test, build)
+- MLflow experiment tracking and model registry
+- Logistic Regression selected over Gradient Boosting after head-to-head evaluation
+- **ROC-AUC: 0.7423** · **PR-AUC: 0.8141** · 27/27 tests passing
 
 ---
 
-# Project Objectives
+## Project Status
 
-* Build an alternative credit risk model using transactional behavioral data.
-* Construct a proxy target using customer engagement patterns.
-* Compare interpretable and high-performance machine learning models.
-* Produce calibrated probability estimates suitable for financial decision making.
-* Track experiments and model versions using MLflow.
-* Deploy the final model through a production-ready FastAPI service.
-* Demonstrate software engineering and MLOps best practices.
+✅ Feature Engineering
+
+✅ Proxy Target Engineering
+
+✅ Model Training
+
+✅ Model Explainability
+
+✅ MLflow Tracking
+
+✅ FastAPI Deployment
+
+✅ Docker
+
+✅ GitHub Actions
+
+✅ PostgreSQL Prediction Logging
+
+✅ 27 Automated Tests
+
+## Architecture
+
+```
+Raw transactions (Xente, 95,662 rows, 90-day window)
+        │
+        ▼
+Temporal split (train < 2019-01-29, test ≥ 2019-01-29)
+        │
+        ├──► RFM proxy labeling (training window only) ──► is_high_risk
+        │
+        ▼
+Feature pipeline (sklearn Pipeline, fit on train only)
+        │
+        ▼
+Manual IV feature selection
+        │
+        ▼
+Model training (LR + GBM) ──► MLflow tracking + registry
+        │
+        ▼
+Calibration + cost-based threshold optimization
+        │
+        ▼
+FastAPI service ──► SHAP explainability ──► PostgreSQL audit log
+        │
+        ▼
+Docker Compose (api + db + mlflow) ──► GitHub Actions CI/CD
+```
 
 ---
 
-# Repository Structure
+## Results
 
-```text
+| Metric | Logistic Regression | Gradient Boosting |
+|---|---|---|
+| ROC-AUC | **0.7423** | 0.6801 |
+| PR-AUC | **0.8141** | 0.7534 |
+| F1 (high-risk) | 0.8064 | 0.8091 |
+| ECE after calibration | 0.0704 | 0.0000* |
+
+**Logistic Regression selected** — better ROC-AUC/PR-AUC, more stable
+calibration, and full coefficient interpretability for Basel II compliance.
+*GBM's perfect ECE likely reflects isotonic regression overfitting on a small
+calibration set — see [docs/model_evaluation.md](docs/model_evaluation.md).
+
+**SHAP global importance (Logistic Regression)** — transaction frequency
+(`Amount_count`) dominates by a wide margin, validating the core proxy
+hypothesis that engagement frequency is the strongest behavioral risk signal:
+
+![SHAP summary](docs/shap_lr_summary.png)
+
+**Calibration curve (Logistic Regression)** — the calibrated curve tracks the
+diagonal more closely than the raw model output, though variance remains
+high in the 0.6–0.85 range due to the small test set (1,056 rows):
+
+![Calibration curve](docs/calibration_lr.png)
+
+Full evaluation detail, including the Gradient Boosting plots, is in
+[docs/model_evaluation.md](docs/model_evaluation.md).
+
+---
+
+## Tech Stack
+
+Python 3.11 • Scikit-learn • FastAPI • PostgreSQL • Docker • MLflow • SHAP • GitHub Actions
+
+---
+
+## Quickstart
+
+```bash
+git clone <https://github.com/ruhamds/Credit-Scoring-for-Buy-Now-Pay-Later-Lending-.git>
+cd credit-risk-model
+docker compose up --build
+```
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/schema
+```
+
+MLflow UI: `http://localhost:5000`
+
+**Example prediction**:
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Amount_count": 12.0, "Amount_sum": 87.3, "Amount_mean": 7.3,
+    "Amount_std": 2.1, "Amount_min": 3.4, "Amount_max": 11.2,
+    "tx_hour_mean": 14.5, "tx_day_mean": 15.2, "tx_month_mean": 11.8,
+    "tx_dayofweek_mean": 2.3, "tx_is_weekend_mean": 0.17,
+    "ProviderId_mode": 3.0, "ChannelId_mode": 2.0,
+    "ProductCategory_mode": 1.0
+  }'
+```
+
+```json
+{
+  "prediction_id": "264dc039-5a1a-4e4f-8c4e-700d35708c80",
+  "risk_score": 0.1791,
+  "decision": "approve",
+  "top_factors": [
+    {"feature": "Amount_count", "impact": -30.83, "direction": "decreases_risk"},
+    {"feature": "Amount_sum", "impact": -13.45, "direction": "decreases_risk"},
+    {"feature": "Amount_mean", "impact": 11.41, "direction": "increases_risk"}
+  ],
+  "model_version": "1.0.0",
+  "threshold_used": 0.3
+}
+```
+
+> **API contract**: `/predict` expects pipeline-transformed, customer-level
+> features (not raw transactions). See [docs/deployment.md](docs/deployment.md).
+
+---
+
+## Project Structure
+
+```
 credit-risk-model/
-│
-├── artifacts/
-├── data/
-│   ├── raw/
-│   └── processed/
-│
-├── docs/
-│   ├── assumptions.md
-│   ├── leakage_audit.md
-│   └── feature_catalog.md
-│
+├── .github/workflows/ci.yml
+├── docs/                       # full methodology — see below
 ├── notebooks/
-│   ├── 01_eda.ipynb
-│   ├── 02_proxy_target_analysis.ipynb
-│   └── 03_feature_analysis.ipynb
-│
-├── reports/
-│
 ├── src/
 │   ├── config.py
 │   ├── data_processing.py
 │   ├── rfm.py
-│   ├── evaluate.py
 │   ├── train.py
-│   ├── predict.py
+│   ├── evaluate.py
 │   └── api/
-│
-├── tests/
-│
+├── tests/                      # 27 tests, all passing
+├── reports/                    # raw plots from training runs
 ├── Dockerfile
 ├── docker-compose.yml
-├── requirements.txt
-└── README.md
+└── requirements.txt
 ```
 
 ---
 
-# Technology Stack
+## My Contributions
 
-| Category            | Tools                                 |
-| ------------------- | ------------------------------------- |
-| Language            | Python                                |
-| Data Processing     | Pandas, NumPy                         |
-| Visualization       | Matplotlib, Seaborn                   |
-| Machine Learning    | Scikit-Learn, XGBoost                 |
-| Explainability      | SHAP                                  |
-| Feature Engineering | Scikit-Learn Pipelines, RFM, WoE / IV |
-| Experiment Tracking | MLflow                                |
-| API                 | FastAPI                               |
-| Testing             | Pytest                                |
-| Containerization    | Docker                                |
-| CI/CD               | GitHub Actions                        |
-
----
-
-# Credit Scoring Business Understanding
-
-## Basel II and Explainability
-
-Financial institutions operating under Basel II and Basel III are expected to build models that are transparent, auditable, and defensible. High predictive accuracy alone is insufficient; lending decisions must also be explainable to regulators, auditors, and business stakeholders.
-
-For this reason, the project develops both an interpretable Logistic Regression model and a Gradient Boosting model. Logistic Regression provides a transparent baseline whose predictions are easier to understand and validate, while Gradient Boosting serves as a benchmark for potential performance improvements.
+- Designed proxy target generation using RFM segmentation (KMeans, k=3)
+  with outlier-robust preprocessing
+- Built the full feature engineering pipeline as a single `sklearn.Pipeline`
+  with zero data leakage between train/test
+- Implemented manual Information Value (IV) feature selection after
+  diagnosing an `xverse` library incompatibility
+- Trained, tuned, and calibrated both Logistic Regression and Gradient
+  Boosting models with MLflow experiment tracking
+- Built a cost-sensitive decision threshold optimizer reflecting real
+  business asymmetry between false positives and false negatives
+- Built the FastAPI prediction service with SHAP explainability and
+  PostgreSQL audit logging
+- Containerized the full stack (API, database, MLflow) with a multi-stage
+  Dockerfile and Docker Compose
+- Configured GitHub Actions CI/CD (lint, test, Docker build)
 
 ---
 
-## Why a Proxy Target?
+## Documentation
 
-The dataset contains transactional behavior but **does not contain actual loan repayment or default information**.
+Full methodology, business rationale, and design tradeoffs:
 
-Without a true default label, supervised learning is not possible.
+- [docs/business_understanding.md](docs/business_understanding.md) — Basel II
+  rationale, proxy label risk, LR vs. GBM tradeoffs
+- [docs/proxy_target.md](docs/proxy_target.md) — RFM construction, clustering
+  diagnostics, silhouette analysis, why 84.5% high-risk is accepted
+- [docs/model_evaluation.md](docs/model_evaluation.md) — full metrics,
+  calibration analysis, threshold optimization, SHAP plots for both models
+- [docs/deployment.md](docs/deployment.md) — API contract, Docker setup,
+  CI/CD pipeline, known limitations
 
-A proxy target is therefore constructed using customer engagement behavior:
+## Limitations
 
-* Recency
-* Frequency
-* Monetary value
+This model uses an unvalidated behavioral proxy for credit risk — it has not
+been validated against actual default outcomes and should be treated as a
+first-generation risk signal, not a production lending decision engine. Full
+discussion in [docs/proxy_target.md](docs/proxy_target.md) and
+[docs/deployment.md](docs/deployment.md).
 
-Customers are segmented using K-Means clustering, and the least engaged segment is labeled as high risk.
+## Future Work
 
-This proxy enables supervised model development while acknowledging that behavioral disengagement is **not equivalent to confirmed credit default**.
-
----
-
-## Model Selection in a Regulated Environment
-
-Two model families are evaluated.
-
-### Logistic Regression
-
-* Highly interpretable
-* Easy to audit
-* Stable probability estimates after calibration
-* Lower governance complexity
-
-### Gradient Boosting
-
-* Captures complex nonlinear relationships
-* Often provides stronger predictive performance
-* Requires post-hoc explainability techniques
-* More complex to monitor and maintain
-
-Both models are trained and evaluated using identical feature sets and compared using discrimination, calibration, and business-oriented evaluation metrics.
-
----
-
-# Exploratory Data Analysis
-
-Key findings from the dataset include:
-
-* **95,662 transactions** across **3,742 unique customers**
-* **90-day observation period** from November 2018 to February 2019
-* No missing values
-* Extremely right-skewed transaction amounts
-* Strong correlation between `Amount` and `Value`
-* Customer behavior is highly heterogeneous, motivating customer-level feature engineering
-* No historical default labels, confirming the need for proxy target construction
-
----
-
-# Feature Engineering
-
-Customer-level features are generated using a production-oriented Scikit-Learn pipeline.
-
-Features include:
-
-* Transaction count
-* Total transaction value
-* Average transaction amount
-* Transaction standard deviation
-* Temporal features
-* Behavioral aggregates
-* Encoded categorical variables
-* Standardized numerical variables
-
-Feature engineering is implemented entirely within reusable Python modules rather than notebooks.
-
----
-
-# Proxy Target Construction
-
-A behavioral proxy target is created using the following workflow:
-
-```
-Transactions
-      │
-      ▼
-Customer Aggregation
-      │
-      ▼
-Recency • Frequency • Monetary
-      │
-      ▼
-Robust Scaling
-      │
-      ▼
-K-Means Clustering
-      │
-      ▼
-High-Risk Segment
-```
-
-Silhouette analysis was performed to evaluate cluster quality before selecting the final segmentation strategy.
-
----
-
-# Model Development
-
-The project trains and compares multiple supervised learning models.
-
-Current models include:
-
-* Logistic Regression
-* Gradient Boosting
-
-Evaluation includes:
-
-* ROC-AUC
-* Precision-Recall AUC
-* F1 Score
-* Recall
-* Expected Calibration Error (ECE)
-* Probability calibration
-* Cost-sensitive threshold optimization
-
-Experiments are tracked using MLflow, and trained models are versioned for reproducibility.
-
----
-
-# Current Results
-
-| Model               |    ROC-AUC |         F1 |      Calibration |
-| ------------------- | ---------: | ---------: | ---------------: |
-| Logistic Regression | **0.7423** |     0.8064 | ECE = **0.0704** |
-| Gradient Boosting   |     0.6801 | **0.8091** |     ECE ≈ 0.0000 |
-
-Logistic Regression was selected as the primary model because it achieved the strongest discriminatory performance while remaining highly interpretable, making it more appropriate for a regulated credit-risk setting.
-
----
-
-# Project Limitations
-
-This project intentionally highlights several real-world challenges.
-
-* No actual loan default labels are available.
-* The target variable is a behavioral proxy rather than true probability of default.
-* Customer disengagement does not necessarily imply future credit default.
-* The proxy target produces a highly imbalanced risk distribution, which influences threshold optimization.
-* Operational decision thresholds may differ from statistically optimal thresholds due to business policy and governance requirements.
-
-These limitations are explicitly documented to ensure transparency and reproducibility.
-
----
-
-# Current Project Status
-
-| Task                         | Status |
-| ---------------------------- | :----: |
-| Business Understanding       |    ✅   |
-| Exploratory Data Analysis    |    ✅   |
-| Feature Engineering Pipeline |    ✅   |
-| Proxy Target Construction    |    ✅   |
-| Model Training               |    ✅   |
-| MLflow Tracking              |    ✅   |
-| Probability Calibration      |    ✅   |
-| SHAP Explainability          |    ✅   |
-| FastAPI Deployment           |    ⏳   |
-| Dockerization                |    ⏳   |
-| GitHub Actions CI/CD         |    ⏳   |
-| Production Monitoring        |    ⏳   |
-
----
-
-# Future Work
-
-The remaining implementation focuses on production deployment.
-
-* FastAPI inference service
-* Docker containerization
-* GitHub Actions CI/CD
-* Prediction logging
-* Health monitoring
-* Model versioning
-* Production-ready deployment pipeline
-
----
-
-# License
-
-
+- Replace the proxy target with real repayment outcomes once loan performance data becomes available.
+- Monitor model drift and recalibrate probabilities over time.
+- Introduce automated retraining pipelines.
+- Extend the API with batch prediction endpoints.
+- Deploy to a cloud platform (Azure, AWS, or GCP).
